@@ -1,0 +1,61 @@
+version: '3'
+
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - ${DB_PORT}:${DB_PORT}
+    working_dir: /app/${WORK_DIR_WEBSHOP}
+    volumes:
+      - ./docker/db/webshop/DB:/var/lib/mysql
+      - ./docker/db/webshop/my.cnf:/etc/mysql/my.cnf
+      - .:/app/${WORK_DIR_WEBSHOP}
+    networks:
+      - webshop
+  php:
+    build:
+      context: docker/php_images/php/webshop
+      args:
+        - UID
+        - GID
+        - UNAME
+    working_dir: /app/${WORK_DIR_WEBSHOP}
+    volumes:
+      - .:/app/${WORK_DIR_WEBSHOP}
+      - ${SSH_KEY}:/home/${UNAME}/.ssh/id_rsa
+    environment:
+      - PHP_IDE_CONFIG=serverName=webshop
+    depends_on:
+      - db
+    networks:
+      - webshop
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./docker/nginx/etc/nginx/conf.d:/etc/nginx/conf.d
+      - ./docker/log/nginx:/var/log/nginx
+      - .:/app/${WORK_DIR_WEBSHOP}
+    ports:
+      - "80:80"
+    depends_on:
+      - php
+    networks:
+      - webshop
+  redis:
+    image: redis:alpine
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
+    networks:
+      - webshop
+  memcached:
+    image: memcached:latest
+    networks:
+      - webshop
+networks:
+  webshop:
+    driver: bridge
